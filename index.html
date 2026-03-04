@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<!-- saved from url=(0022)http://localhost:3000/ -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Resume2Win - Land Your Dream Job</title>
+  <link rel="stylesheet" href="./index/style.css">
+</head>
+<body class="home-page">
+
+  <main class="home-main">
+    <!-- Banner Section -->
+    <section class="banner-section">
+      <picture class="banner-picture">
+        <source srcset="./index/banner.png" type="image/png">
+        <source srcset="./index/banner.png" type="image/jpeg">
+        <img src="./index/banner.png" alt="Resume2Win - Land the Job. Win the Interview." class="banner-image">
+      </picture>
+    </section>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+      <div class="hero-content">
+        <h2>Upload Your Resume &amp; Start Matching</h2>
+        <p>See exactly what employers want and optimize your application in seconds.</p>
+        
+        <div class="upload-area" id="uploadDropZone">
+          <div class="upload-icon">📄</div>
+          <h3>Upload Your Resume</h3>
+          <p>Drag and drop or click to upload (PDF, Word, or Text)</p>
+          <form id="uploadForm" enctype="multipart/form-data" style="display:none;">
+            <input type="file" name="resume" accept=".txt,.md,.pdf,.docx">
+          </form>
+          <button type="button" class="file-input-btn">Choose File</button>
+        </div>
+
+        <div class="quick-actions">
+          <button class="action-card secondary" id="quickCreateBtn">
+            <span class="icon">✏️</span>
+            <span class="label">Create Resume</span>
+            <span class="desc">Start from scratch</span>
+          </button>
+          <button class="action-card primary" id="quickJobMatchBtn">
+            <span class="icon">🎯</span>
+            <span class="label">Match Resume to Job</span>
+            <span class="desc">Paste a job description</span>
+          </button>
+        </div>
+
+        <!-- Error Section -->
+        <section id="errorSection" class="hidden">
+          <div class="error-message" id="errorMsg"></div>
+        </section>
+      </div>
+    </section>
+
+    <!-- Results Section (initially hidden) -->
+    <section id="resultsSection" class="results-section hidden">
+      <div class="results-header">
+        <button class="back-btn" id="backToUploadBtn">← Upload Another Resume</button>
+      </div>
+
+      <div class="ats-review-card">
+        <h2>Resume ATS Check</h2>
+        <pre id="reviewText" class="review-content"></pre>
+        <div class="action-group">
+          <button id="editResumeBtn" class="btn-modern">Edit Resume</button>
+          <button id="proceedToMatchBtn" class="btn-modern secondary">Proceed to Job Match</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./Resume2Win - Land Your Dream Job_files/main.js.download"></script>
+  <script>
+    // Home page specific logic
+    document.addEventListener('DOMContentLoaded', () => {
+      const uploadDropZone = document.getElementById('uploadDropZone');
+      const uploadForm = document.getElementById('uploadForm');
+      const fileInputBtn = document.querySelector('.file-input-btn');
+      const reviewText = document.getElementById('reviewText');
+      const resultsSection = document.getElementById('resultsSection');
+      const errorSection = document.getElementById('errorSection');
+      const errorMsg = document.getElementById('errorMsg');
+      const quickJobMatchBtn = document.getElementById('quickJobMatchBtn');
+      const quickCreateBtn = document.getElementById('quickCreateBtn');
+      const editResumeBtn = document.getElementById('editResumeBtn');
+      const proceedToMatchBtn = document.getElementById('proceedToMatchBtn');
+      const backToUploadBtn = document.getElementById('backToUploadBtn');
+
+      // drag & drop
+      uploadDropZone.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        uploadDropZone.classList.add('dragover');
+      });
+
+      uploadDropZone.addEventListener('dragleave', () => {
+        uploadDropZone.classList.remove('dragover');
+      });
+
+      uploadDropZone.addEventListener('drop', async (e) => {
+        e.preventDefault();
+        uploadDropZone.classList.remove('dragover');
+        const files = e.dataTransfer.files;
+        if (files.length) {
+          await analyzeResume(files[0]);
+        }
+      });
+
+      // file input click
+      fileInputBtn.addEventListener('click', () => {
+        uploadForm.querySelector('input[type=file]').click();
+      });
+
+      uploadForm.addEventListener('change', async (e) => {
+        if (e.target.files.length) {
+          await analyzeResume(e.target.files[0]);
+        }
+      });
+
+      async function analyzeResume(file) {
+        const formData = new FormData();
+        formData.append('resume', file);
+
+        try {
+          const resp = await fetch('/api/ats-check', { method: 'POST', body: formData });
+          const data = await resp.json();
+
+          if (data.error) {
+            showError(data.error);
+          } else {
+            localStorage.setItem('resumeDraft', data.text);
+            reviewText.textContent = data.review;
+            resultsSection.classList.remove('hidden');
+            errorSection.classList.add('hidden');
+            // scroll to results
+            setTimeout(() => resultsSection.scrollIntoView({ behavior: 'smooth' }), 100);
+          }
+        } catch (err) {
+          showError('Failed to analyze resume: ' + err.message);
+        }
+      }
+
+      function showError(msg) {
+        errorMsg.textContent = msg;
+        errorSection.classList.remove('hidden');
+      }
+
+      quickJobMatchBtn.addEventListener('click', () => {
+        if (!localStorage.getItem('resumeDraft')) {
+          showError('Please upload a resume first');
+          return;
+        }
+        window.location.href = '/job-match';
+      });
+
+      quickCreateBtn.addEventListener('click', () => {
+        localStorage.removeItem('resumeDraft');
+        window.location.href = '/edit';
+      });
+
+      editResumeBtn.addEventListener('click', () => {
+        window.location.href = '/edit';
+      });
+
+      proceedToMatchBtn.addEventListener('click', () => {
+        window.location.href = '/job-match';
+      });
+
+      backToUploadBtn.addEventListener('click', () => {
+        resultsSection.classList.add('hidden');
+        uploadForm.reset();
+      });
+    });
+  </script>
+
+</body></html>
