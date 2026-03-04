@@ -1,0 +1,181 @@
+document.addEventListener('DOMContentLoaded', () => {
+  const uploadForm = document.getElementById('uploadForm');
+  const reviewText = document.getElementById('reviewText');
+  const resultDiv = document.getElementById('result');
+  const editResumeBtn = document.getElementById('editResume');
+
+  // drag & drop support
+  const dropZone = document.body;
+  dropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+  });
+  dropZone.addEventListener('dragleave', () => {
+    dropZone.classList.remove('dragover');
+  });
+  dropZone.addEventListener('drop', async (e) => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const files = e.dataTransfer.files;
+    if (files.length) {
+      const formData = new FormData();
+      formData.append('resume', files[0]);
+      const response = await fetch('/api/ats-check', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (data.review) {
+        reviewText.textContent = data.review;
+        resultDiv.classList.remove('hidden');
+      }
+      if (data.text) {
+        localStorage.setItem('resumeDraft', data.text);
+      }
+    }
+  });
+
+  if (uploadForm) {
+    uploadForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const formData = new FormData(uploadForm);
+      const response = await fetch('/api/ats-check', {
+        method: 'POST',
+        body: formData
+      });
+      const data = await response.json();
+      if (data.review) {
+        reviewText.textContent = data.review;
+        resultDiv.classList.remove('hidden');
+      }
+      if (data.text) {
+        localStorage.setItem('resumeDraft', data.text);
+      }
+    });
+  }
+
+  // when user clicks "Use" on templates page set selected template and go to edit
+  document.querySelectorAll('.useTemplate').forEach((btn) => {
+    btn.addEventListener('click', (e) => {
+      const tpl = btn.getAttribute('data-template');
+      if (tpl) {
+        localStorage.setItem('selectedTemplate', tpl);
+        window.location.href = '/edit';
+      }
+    });
+  });
+
+  // auto-submit when user chooses a file via the input
+  const fileInput = document.querySelector('#uploadForm input[type=file]');
+  if (fileInput) {
+    fileInput.addEventListener('change', async () => {
+      if (fileInput.files.length === 0) return;
+      const formData = new FormData();
+      formData.append('resume', fileInput.files[0]);
+      const response = await fetch('/api/ats-check', { method: 'POST', body: formData });
+      const data = await response.json();
+      if (data.review) {
+        reviewText.textContent = data.review;
+        resultDiv.classList.remove('hidden');
+      }
+      if (data.text) {
+        localStorage.setItem('resumeDraft', data.text);
+      }
+    });
+  }
+  const createBtn = document.getElementById('createBtn');
+  if (createBtn) {
+    createBtn.addEventListener('click', () => {
+      window.location.href = '/edit';
+    });
+  }
+
+  if (editResumeBtn) {
+    editResumeBtn.addEventListener('click', () => {
+      window.location.href = '/edit';
+    });
+  }
+
+  // resume editing page actions
+  const saveDraftBtn = document.getElementById('saveDraft');
+  const optimizeBtn = document.getElementById('optimizeBtn');
+  const downloadPdfBtn = document.getElementById('downloadPdf');
+  const templateSelect = document.getElementById('templateSelect');
+  const resumeText = document.getElementById('resumeText');
+
+  // initialize Quill editor if present
+  let quill;
+  const editorContainer = document.getElementById('editor-container');
+  if (editorContainer) {
+    quill = new Quill('#editor-container', { theme: 'snow' });
+    const draft = localStorage.getItem('resumeDraft');
+    if (draft) {
+      quill.setText(draft);
+    }
+    // if a template was previously selected in gallery, set preview and select
+    const selected = localStorage.getItem('selectedTemplate');
+    if (selected) {
+      const previewImg = document.getElementById('templatePreviewImg');
+      // mapping available workspace images to template ids
+      const previewMap = {
+        classic: 'createResume.JPG',
+        modern: 'selectTemplate.JPG',
+        compact: 'EditResult.JPG',
+        creative: 'analyzeResult.JPG'
+      };
+      if (previewImg) previewImg.src = `/images/${previewMap[selected] || 'createResume.JPG'}`;
+      const sel = document.getElementById('templateSelect');
+      if (sel) sel.value = selected;
+    }
+  }
+
+  if (saveDraftBtn) {
+    saveDraftBtn.addEventListener('click', () => {
+      const text = quill ? quill.getText() : resumeText.value;
+      localStorage.setItem('resumeDraft', text);
+      alert('Draft saved locally in browser.');
+    });
+  }
+
+  if (optimizeBtn) {
+    optimizeBtn.addEventListener('click', async () => {
+      const text = quill ? quill.getText() : resumeText.value;
+      const resp = await fetch('/api/optimize', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await resp.json();
+      if (data.optimized) {
+        if (quill) quill.setText(data.optimized);
+        else resumeText.value = data.optimized;
+      }
+    });
+  }
+
+  if (downloadPdfBtn) {
+    downloadPdfBtn.addEventListener('click', async () => {
+      const text = quill ? quill.getText() : resumeText.value;
+      const chosen = templateSelect?.value || localStorage.getItem('selectedTemplate') || 'classic';
+      const resp = await fetch('/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text, templateId: chosen })
+      });
+      if (!resp.ok) {
+        alert('Failed to generate PDF');
+        return;
+      }
+      const blob = await resp.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'resume.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    });
+  }
+
+  if (resumeText && !quill) {
+    const draft = localStorage.getItem('resumeDraft');
+    if (draft) resumeText.value = draft;
+  }
+});
